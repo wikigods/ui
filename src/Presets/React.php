@@ -33,12 +33,15 @@ class React extends Preset
     {
         return [
             '@vitejs/plugin-react' => '^4.2.0',
+            'esbuild' => '^0.25.0',
             'react' => '^18.2.0',
             'react-dom' => '^18.2.0',
-        ] + Arr::except($packages, [
+            'sass' => '^1.56.1',
+            'sass-embedded' => '^1.80.0',
+        ] + static::removeTailwindPackages(Arr::except($packages, [
             '@vitejs/plugin-vue',
             'vue'
-        ]);
+        ]));
     }
 
     /**

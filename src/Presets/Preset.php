@@ -3,9 +3,27 @@
 namespace Laravel\Ui\Presets;
 
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Support\Str;
 
 class Preset
 {
+    /**
+     * Remove Tailwind packages from the application's package manifest.
+     *
+     * @param  array<string, string>  $packages
+     * @return array<string, string>
+     */
+    protected static function removeTailwindPackages(array $packages)
+    {
+        foreach (array_keys($packages) as $package) {
+            if ($package === 'tailwindcss' || Str::startsWith($package, '@tailwindcss/')) {
+                unset($packages[$package]);
+            }
+        }
+
+        return $packages;
+    }
+
     /**
      * Ensure the component directories we need exist.
      *

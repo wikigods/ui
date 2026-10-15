@@ -32,12 +32,15 @@ class Vue extends Preset
     {
         return [
             '@vitejs/plugin-vue' => '^5.2.1',
+            'esbuild' => '^0.25.0',
+            'sass' => '^1.56.1',
+            'sass-embedded' => '^1.80.0',
             'vue' => '^3.5.13',
-        ] + Arr::except($packages, [
+        ] + static::removeTailwindPackages(Arr::except($packages, [
             '@vitejs/plugin-react',
             'react',
             'react-dom',
-        ]);
+        ]));
     }
 
     /**
