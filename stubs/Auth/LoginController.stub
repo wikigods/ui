@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class LoginController extends Controller
 {
@@ -36,5 +38,27 @@ class LoginController extends Controller
     {
         $this->middleware('guest')->except('logout');
         $this->middleware('auth')->only('logout');
+    }
+
+    /**
+     * Require a second factor before completing login when the user enabled it.
+     *
+     * @param  mixed  $user
+     * @return \Illuminate\Http\RedirectResponse|null
+     */
+    protected function authenticated(Request $request, $user)
+    {
+        if (! $user->two_factor_confirmed_at || ! $user->two_factor_secret) {
+            return null;
+        }
+
+        $request->session()->put([
+            'two_factor.login_id' => $user->getAuthIdentifier(),
+            'two_factor.remember' => $request->boolean('remember'),
+        ]);
+
+        Auth::logout();
+
+        return redirect()->route('two-factor.login');
     }
 }

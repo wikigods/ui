@@ -51,7 +51,12 @@ class AuthRouteMethods
 
                 // Profile Routes...
                 if ($options['profile'] ?? true) {
-                    $this->profile();
+                    $this->profile($options);
+                }
+
+                // Two-Factor Authentication Routes...
+                if ($options['twoFactor'] ?? true) {
+                    $this->twoFactorAuthentication();
                 }
             });
         };
@@ -64,13 +69,37 @@ class AuthRouteMethods
      */
     public function profile()
     {
-        return function () {
-            $this->group(['middleware' => 'auth'], function () {
+        return function ($options = []) {
+            $this->group(['middleware' => 'auth'], function () use ($options) {
                 $this->get('profile', 'Auth\ProfileController@edit')->name('profile.edit');
                 $this->put('profile', 'Auth\ProfileController@update')->name('profile.update');
                 $this->put('password', 'Auth\ProfileController@updatePassword')->name('profile.password.update');
                 $this->delete('profile', 'Auth\ProfileController@destroy')->name('profile.destroy');
+                $this->delete('profile/sessions/{sessionId}', 'Auth\ProfileController@destroySession')->name('profile.sessions.destroy');
+
+                if ($options['twoFactor'] ?? true) {
+                    $this->post('profile/two-factor', 'Auth\ProfileController@enableTwoFactor')->name('profile.two-factor.enable');
+                    $this->post('profile/two-factor/confirm', 'Auth\ProfileController@confirmTwoFactor')->name('profile.two-factor.confirm');
+                    $this->post('profile/two-factor/recovery-codes', 'Auth\ProfileController@regenerateRecoveryCodes')->name('profile.two-factor.recovery-codes');
+                    $this->delete('profile/two-factor', 'Auth\ProfileController@disableTwoFactor')->name('profile.two-factor.disable');
+                }
             });
+        };
+    }
+
+    /**
+     * Register the two-factor login challenge routes.
+     *
+     * @return callable
+     */
+    public function twoFactorAuthentication()
+    {
+        return function () {
+            $this->get('two-factor-challenge', 'Auth\TwoFactorChallengeController@show')
+                ->name('two-factor.login');
+            $this->post('two-factor-challenge', 'Auth\TwoFactorChallengeController@authenticate')
+                ->middleware('throttle:5,1')
+                ->name('two-factor.authenticate');
         };
     }
 

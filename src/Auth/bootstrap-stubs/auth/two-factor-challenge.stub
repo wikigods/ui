@@ -1,0 +1,35 @@
+@extends('layouts.app')
+
+@section('content')
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow-sm">
+                <div class="card-header">{{ __('Two-factor authentication') }}</div>
+
+                <div class="card-body p-4">
+                    <p class="text-muted">{{ __('Enter the authentication code from your app or one of your recovery codes to finish signing in.') }}</p>
+
+                    <form method="POST" action="{{ route('two-factor.authenticate') }}">
+                        @csrf
+
+                        <div class="mb-3">
+                            <label for="code" class="form-label">{{ __('Authentication code') }}</label>
+                            <input id="code" type="text" name="code" value="{{ old('code') }}" class="form-control @error('code') is-invalid @enderror" required autocomplete="one-time-code" autofocus>
+                            @error('code')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100">{{ __('Verify and sign in') }}</button>
+                    </form>
+
+                    <div class="text-center mt-3">
+                        <a href="{{ route('login') }}">{{ __('Return to sign in') }}</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endsection

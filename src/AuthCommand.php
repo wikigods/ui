@@ -38,6 +38,7 @@ class AuthCommand extends Command
         'auth/passwords/reset.stub' => 'auth/passwords/reset.blade.php',
         'auth/register.stub' => 'auth/register.blade.php',
         'auth/verify.stub' => 'auth/verify.blade.php',
+        'auth/two-factor-challenge.stub' => 'auth/two-factor-challenge.blade.php',
         'profile/edit.stub' => 'profile/edit.blade.php',
         'home.stub' => 'home.blade.php',
         'layouts/app.stub' => 'layouts/app.blade.php',
@@ -147,11 +148,45 @@ class AuthCommand extends Command
             );
         }
 
+        $this->exportSecurityMigrations();
+
         file_put_contents(
             base_path('routes/web.php'),
             file_get_contents(__DIR__.'/Auth/stubs/routes.stub'),
             FILE_APPEND
         );
+    }
+
+    /**
+     * Export the migrations required by two-factor authentication and database sessions.
+     */
+    protected function exportSecurityMigrations()
+    {
+        $directory = database_path('migrations');
+
+        if (! is_dir($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
+        $migrations = [
+            [
+                '2026_10_15_000000_add_two_factor_fields_to_users_table.php',
+                '*_add_two_factor_fields_to_users_table.php',
+            ],
+            [
+                '2026_10_15_000001_create_sessions_table.php',
+                '*_create_sessions_table.php',
+            ],
+        ];
+
+        foreach ($migrations as [$filename, $pattern]) {
+            if (empty(glob($directory.DIRECTORY_SEPARATOR.$pattern))) {
+                copy(
+                    __DIR__.'/../stubs/migrations/'.$filename,
+                    $directory.DIRECTORY_SEPARATOR.$filename
+                );
+            }
+        }
     }
 
     /**

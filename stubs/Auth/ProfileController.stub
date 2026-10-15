@@ -3,23 +3,70 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ConfirmCurrentPasswordRequest;
 use App\Http\Requests\DeleteAccountRequest;
 use App\Http\Requests\PasswordUpdateRequest;
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Http\Requests\TwoFactorConfirmationRequest;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Laravel\Ui\Auth\TwoFactorAuthenticator;
 
 class ProfileController extends Controller
 {
     /**
      * Show the profile management page.
      */
-    public function edit(): View
+    public function edit(Request $request): View
     {
-        return view('profile.edit');
+        $user = $request->user();
+        $setupSecret = null;
+
+        if (! $user->two_factor_confirmed_at && $user->two_factor_secret) {
+            $setupSecret = Crypt::decryptString($user->two_factor_secret);
+        }
+
+        $sessionsAvailable = config('session.driver') === 'database'
+            && Schema::hasTable('sessions');
+        $sessions = collect();
+
+        if ($sessionsAvailable) {
+            $activeSince = now()->subMinutes(config('session.lifetime'))->timestamp;
+
+            $sessions = DB::table('sessions')
+                ->where('user_id', $user->getAuthIdentifier())
+                ->where('last_activity', '>=', $activeSince)
+                ->orderByDesc('last_activity')
+                ->get()
+                ->map(function ($session) use ($request) {
+                    return [
+                        'id' => $session->id,
+                        'ip_address' => $session->ip_address ?: __('Unknown'),
+                        'user_agent' => Str::limit($session->user_agent ?: __('Unknown device'), 120),
+                        'last_active' => \Illuminate\Support\Carbon::createFromTimestamp($session->last_activity)->diffForHumans(),
+                        'is_current' => hash_equals($request->session()->getId(), $session->id),
+                    ];
+                });
+        }
+
+        return view('profile.edit', [
+            'twoFactorSetupSecret' => $setupSecret,
+            'twoFactorProvisioningUri' => $setupSecret
+                ? TwoFactorAuthenticator::provisioningUri($setupSecret, $user->email, config('app.name'))
+                : null,
+            'recoveryCodes' => $request->session()->pull('two_factor.recovery_codes', []),
+            'sessions' => $sessions,
+            'sessionsAvailable' => $sessionsAvailable,
+        ]);
     }
 
     /**
@@ -68,5 +115,123 @@ class ProfileController extends Controller
         $request->session()->regenerateToken();
 
         return redirect('/');
+    }
+
+    /**
+     * Create a pending authenticator secret for the authenticated user.
+     */
+    public function enableTwoFactor(ConfirmCurrentPasswordRequest $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        if ($user->two_factor_confirmed_at) {
+            return back()->with('status', 'two-factor-already-enabled');
+        }
+
+        $secret = TwoFactorAuthenticator::generateSecret();
+
+        $user->forceFill([
+            'two_factor_secret' => Crypt::encryptString($secret),
+            'two_factor_recovery_codes' => null,
+            'two_factor_confirmed_at' => null,
+        ])->save();
+
+        return back()->with('status', 'two-factor-setup');
+    }
+
+    /**
+     * Confirm the authenticator secret and issue recovery codes.
+     */
+    public function confirmTwoFactor(TwoFactorConfirmationRequest $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        if (! $user->two_factor_secret || $user->two_factor_confirmed_at) {
+            return back()->withErrors([
+                'code' => __('Start two-factor setup before confirming a code.'),
+            ]);
+        }
+
+        $secret = Crypt::decryptString($user->two_factor_secret);
+
+        if (! TwoFactorAuthenticator::verify($secret, $request->validated('code'))) {
+            throw ValidationException::withMessages([
+                'code' => [__('The provided authentication code is invalid.')],
+            ]);
+        }
+
+        $codes = TwoFactorAuthenticator::generateRecoveryCodes();
+
+        $user->forceFill([
+            'two_factor_confirmed_at' => now(),
+            'two_factor_recovery_codes' => json_encode(
+                TwoFactorAuthenticator::hashRecoveryCodes($codes)
+            ),
+        ])->save();
+
+        return back()
+            ->with('status', 'two-factor-enabled')
+            ->with('two_factor.recovery_codes', $codes);
+    }
+
+    /**
+     * Disable two-factor authentication after confirming the current password.
+     */
+    public function disableTwoFactor(ConfirmCurrentPasswordRequest $request): RedirectResponse
+    {
+        $request->user()->forceFill([
+            'two_factor_secret' => null,
+            'two_factor_recovery_codes' => null,
+            'two_factor_confirmed_at' => null,
+        ])->save();
+
+        return back()->with('status', 'two-factor-disabled');
+    }
+
+    /**
+     * Replace the user's recovery codes after confirming the current password.
+     */
+    public function regenerateRecoveryCodes(ConfirmCurrentPasswordRequest $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        if (! $user->two_factor_confirmed_at) {
+            return back()->with('status', 'two-factor-not-enabled');
+        }
+
+        $codes = TwoFactorAuthenticator::generateRecoveryCodes();
+
+        $user->forceFill([
+            'two_factor_recovery_codes' => json_encode(
+                TwoFactorAuthenticator::hashRecoveryCodes($codes)
+            ),
+        ])->save();
+
+        return back()
+            ->with('status', 'recovery-codes-generated')
+            ->with('two_factor.recovery_codes', $codes);
+    }
+
+    /**
+     * Revoke another active database-backed session owned by the user.
+     */
+    public function destroySession(ConfirmCurrentPasswordRequest $request, string $sessionId): RedirectResponse
+    {
+        abort_unless(config('session.driver') === 'database' && Schema::hasTable('sessions'), 404);
+
+        if (hash_equals($request->session()->getId(), $sessionId)) {
+            return back()->withErrors([
+                'current_password' => __('Your current session cannot be revoked here.'),
+            ]);
+        }
+
+        $deleted = DB::table('sessions')
+            ->where('id', $sessionId)
+            ->where('user_id', $request->user()->getAuthIdentifier())
+            ->delete();
+
+        abort_unless($deleted, 404);
+
+        return back()->with('status', 'session-revoked');
     }
 }

@@ -1,0 +1,96 @@
+<?php
+
+namespace App\Http\Controllers\Auth;
+
+use App\Http\Controllers\Controller;
+use App\Http\Requests\TwoFactorLoginRequest;
+use App\Models\User;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Validation\ValidationException;
+use Illuminate\View\View;
+use Laravel\Ui\Auth\TwoFactorAuthenticator;
+
+class TwoFactorChallengeController extends Controller
+{
+    /**
+     * Show the two-factor authentication challenge.
+     */
+    public function show(Request $request): View|RedirectResponse
+    {
+        if (! $request->session()->has('two_factor.login_id')) {
+            return redirect()->route('login');
+        }
+
+        return view('auth.two-factor-challenge');
+    }
+
+    /**
+     * Verify an authenticator or one-time recovery code and complete login.
+     */
+    public function authenticate(TwoFactorLoginRequest $request): RedirectResponse
+    {
+        $user = User::find($request->session()->get('two_factor.login_id'));
+
+        if (! $user || ! $user->two_factor_confirmed_at || ! $user->two_factor_secret) {
+            $this->clearPendingLogin($request);
+
+            return redirect()->route('login');
+        }
+
+        $code = $request->validated('code');
+        $secret = Crypt::decryptString($user->two_factor_secret);
+        $isValid = TwoFactorAuthenticator::verify($secret, $code);
+
+        if (! $isValid) {
+            $isValid = $this->consumeRecoveryCode($user, $code);
+        }
+
+        if (! $isValid) {
+            throw ValidationException::withMessages([
+                'code' => [__('The provided authentication code is invalid.')],
+            ]);
+        }
+
+        $remember = (bool) $request->session()->get('two_factor.remember', false);
+        $this->clearPendingLogin($request);
+
+        Auth::login($user, $remember);
+        $request->session()->regenerate();
+
+        return redirect()->intended('/home');
+    }
+
+    /**
+     * Verify and remove a recovery code after use.
+     */
+    protected function consumeRecoveryCode(User $user, string $code): bool
+    {
+        $codes = json_decode($user->two_factor_recovery_codes ?? '[]', true) ?: [];
+
+        $remainingCodes = TwoFactorAuthenticator::consumeRecoveryCode($codes, $code);
+
+        if ($remainingCodes !== null) {
+            $user->forceFill([
+                'two_factor_recovery_codes' => json_encode($remainingCodes),
+            ])->save();
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Clear the unauthenticated two-factor login challenge state.
+     */
+    protected function clearPendingLogin(TwoFactorLoginRequest $request): void
+    {
+        $request->session()->forget([
+            'two_factor.login_id',
+            'two_factor.remember',
+        ]);
+    }
+}

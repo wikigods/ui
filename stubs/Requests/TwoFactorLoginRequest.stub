@@ -1,0 +1,28 @@
+<?php
+
+namespace App\Http\Requests;
+
+use Illuminate\Foundation\Http\FormRequest;
+
+class TwoFactorLoginRequest extends FormRequest
+{
+    /**
+     * Determine whether the user is authorized to make this request.
+     */
+    public function authorize(): bool
+    {
+        return $this->session()->has('two_factor.login_id');
+    }
+
+    /**
+     * Get the validation rules that apply to the request.
+     *
+     * @return array<string, mixed>
+     */
+    public function rules(): array
+    {
+        return [
+            'code' => ['required', 'string', 'max:64'],
+        ];
+    }
+}

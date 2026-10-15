@@ -45,9 +45,9 @@ php artisan ui vue --auth
 php artisan ui react --auth
 ```
 
-The Bootstrap authentication scaffolding also includes authenticated profile management. It generates a profile page to edit the user's name and email, change the password after confirming the current password, and delete the account after a password check. The generated views use Bootstrap 5, and the feature is implemented by this package without requiring Breeze, Fortify, or Jetstream.
+The Bootstrap authentication scaffolding also includes authenticated profile and security management. Users can edit their name and email, change their password, enable TOTP two-factor authentication, use one-time recovery codes, review and revoke database-backed sessions, and delete their account. The generated views use Bootstrap 5, and these features are implemented by this package without requiring Breeze, Fortify, or Jetstream.
 
-The generated `routes/web.php` registers them with `Auth::routes()`. Profile routes are enabled by default and protected by the `auth` middleware; pass `Auth::routes(['profile' => false])` to disable them.
+The generated `routes/web.php` registers them with `Auth::routes()`. Profile and two-factor routes are enabled by default. Pass `Auth::routes(['profile' => false])` to disable profile settings or `Auth::routes(['twoFactor' => false])` to disable two-factor login routes. The scaffold exports migrations for the two-factor user fields and the database sessions table; run `php artisan migrate` after scaffolding. Session management requires `SESSION_DRIVER=database`.
 
 #### CSS
 

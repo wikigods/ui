@@ -13,6 +13,14 @@
                 <div class="alert alert-success" role="alert">{{ __('Profile updated successfully.') }}</div>
             @elseif (session('status') === 'password-updated')
                 <div class="alert alert-success" role="alert">{{ __('Password updated successfully.') }}</div>
+            @elseif (session('status') === 'two-factor-enabled')
+                <div class="alert alert-success" role="alert">{{ __('Two-factor authentication is enabled.') }}</div>
+            @elseif (session('status') === 'two-factor-disabled')
+                <div class="alert alert-success" role="alert">{{ __('Two-factor authentication is disabled.') }}</div>
+            @elseif (session('status') === 'recovery-codes-generated')
+                <div class="alert alert-success" role="alert">{{ __('New recovery codes have been generated.') }}</div>
+            @elseif (session('status') === 'session-revoked')
+                <div class="alert alert-success" role="alert">{{ __('The session has been revoked.') }}</div>
             @endif
 
             <section class="row g-4 mb-5" aria-labelledby="profile-information-heading">
@@ -91,6 +99,167 @@
                                     <button type="submit" class="btn btn-primary">{{ __('Save') }}</button>
                                 </div>
                             </form>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            @if (Route::has('profile.two-factor.enable'))
+                <section class="row g-4 mb-5" aria-labelledby="two-factor-heading">
+                    <div class="col-md-4">
+                        <h2 id="two-factor-heading" class="h5">{{ __('Two-factor authentication') }}</h2>
+                        <p class="text-muted">{{ __('Add another layer of security with a code from an authenticator app.') }}</p>
+                    </div>
+
+                    <div class="col-md-8">
+                        <div class="card shadow-sm">
+                            <div class="card-body p-4">
+                                @if (Auth::user()->two_factor_confirmed_at)
+                                    <p><span class="badge text-bg-success">{{ __('Enabled') }}</span></p>
+
+                                    @if ($recoveryCodes)
+                                        <div class="alert alert-warning" role="alert">
+                                            <h3 class="h6">{{ __('Save these recovery codes now') }}</h3>
+                                            <p>{{ __('Each code can be used once if you lose access to your authenticator app.') }}</p>
+                                            <ul class="mb-0">
+                                                @foreach ($recoveryCodes as $recoveryCode)
+                                                    <li><code>{{ $recoveryCode }}</code></li>
+                                                @endforeach
+                                            </ul>
+                                        </div>
+                                    @endif
+
+                                    <form method="POST" action="{{ route('profile.two-factor.recovery-codes') }}" class="mb-3">
+                                        @csrf
+
+                                        <div class="mb-3">
+                                            <label for="recovery_current_password" class="form-label">{{ __('Current password') }}</label>
+                                            <input id="recovery_current_password" type="password" name="current_password" class="form-control @error('current_password') is-invalid @enderror" required autocomplete="current-password">
+                                            @error('current_password')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+
+                                        <button type="submit" class="btn btn-outline-primary">{{ __('Generate new recovery codes') }}</button>
+                                    </form>
+
+                                    <hr>
+
+                                    <form method="POST" action="{{ route('profile.two-factor.disable') }}">
+                                        @csrf
+                                        @method('DELETE')
+
+                                        <div class="mb-3">
+                                            <label for="disable_two_factor_password" class="form-label">{{ __('Current password') }}</label>
+                                            <input id="disable_two_factor_password" type="password" name="current_password" class="form-control @error('current_password') is-invalid @enderror" required autocomplete="current-password">
+                                            @error('current_password')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+
+                                        <button type="submit" class="btn btn-outline-danger">{{ __('Disable two-factor authentication') }}</button>
+                                    </form>
+                                @elseif ($twoFactorSetupSecret)
+                                    <p>{{ __('Add this account to your authenticator app. You can scan the setup URI with a QR-code app or enter the secret manually.') }}</p>
+                                    <div class="mb-3">
+                                        <label class="form-label">{{ __('Setup key') }}</label>
+                                        <div><code class="user-select-all">{{ $twoFactorSetupSecret }}</code></div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">{{ __('Setup URI') }}</label>
+                                        <div class="form-control bg-light text-break" role="textbox" aria-readonly="true">{{ $twoFactorProvisioningUri }}</div>
+                                    </div>
+
+                                    <form method="POST" action="{{ route('profile.two-factor.confirm') }}">
+                                        @csrf
+
+                                        <div class="mb-3">
+                                            <label for="two_factor_code" class="form-label">{{ __('Enter the six-digit code from your app') }}</label>
+                                            <input id="two_factor_code" type="text" name="code" class="form-control @error('code') is-invalid @enderror" required inputmode="numeric" autocomplete="one-time-code">
+                                            @error('code')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+
+                                        <button type="submit" class="btn btn-primary">{{ __('Confirm and enable') }}</button>
+                                    </form>
+                                @else
+                                    <p>{{ __('You will be asked for an authenticator code each time you sign in.') }}</p>
+
+                                    <form method="POST" action="{{ route('profile.two-factor.enable') }}">
+                                        @csrf
+
+                                        <div class="mb-3">
+                                            <label for="enable_two_factor_password" class="form-label">{{ __('Current password') }}</label>
+                                            <input id="enable_two_factor_password" type="password" name="current_password" class="form-control @error('current_password') is-invalid @enderror" required autocomplete="current-password">
+                                            @error('current_password')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+
+                                        <button type="submit" class="btn btn-primary">{{ __('Set up two-factor authentication') }}</button>
+                                    </form>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            @endif
+
+            <section class="row g-4 mb-5" aria-labelledby="sessions-heading">
+                <div class="col-md-4">
+                    <h2 id="sessions-heading" class="h5">{{ __('Active sessions') }}</h2>
+                    <p class="text-muted">{{ __('Review and revoke sign-ins to your account on other devices.') }}</p>
+                </div>
+
+                <div class="col-md-8">
+                    <div class="card shadow-sm">
+                        <div class="card-body p-4">
+                            @if (! $sessionsAvailable)
+                                <div class="alert alert-info mb-0" role="alert">
+                                    {{ __('Session management requires the database session driver and the sessions table. Set SESSION_DRIVER=database and run your migrations to enable it.') }}
+                                </div>
+                            @else
+                                @if ($sessions->isEmpty())
+                                    <p class="text-muted mb-0">{{ __('No active sessions were found.') }}</p>
+                                @else
+                                    <div class="table-responsive">
+                                        <table class="table align-middle mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th>{{ __('Device') }}</th>
+                                                    <th>{{ __('Last active') }}</th>
+                                                    <th>{{ __('Status') }}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach ($sessions as $session)
+                                                    <tr>
+                                                        <td>
+                                                            <div>{{ $session['user_agent'] }}</div>
+                                                            <small class="text-muted">{{ $session['ip_address'] }}</small>
+                                                        </td>
+                                                        <td>{{ $session['last_active'] }}</td>
+                                                        <td>
+                                                            @if ($session['is_current'])
+                                                                <span class="badge text-bg-primary">{{ __('This device') }}</span>
+                                                            @else
+                                                                <form method="POST" action="{{ route('profile.sessions.destroy', $session['id']) }}" class="d-flex flex-column gap-2">
+                                                                    @csrf
+                                                                    @method('DELETE')
+
+                                                                    <input type="password" name="current_password" class="form-control form-control-sm @error('current_password') is-invalid @enderror" placeholder="{{ __('Current password') }}" aria-label="{{ __('Current password') }}" required autocomplete="current-password">
+                                                                    <button type="submit" class="btn btn-sm btn-outline-danger">{{ __('Revoke session') }}</button>
+                                                                </form>
+                                                            @endif
+                                                        </td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                @endif
+                            @endif
                         </div>
                     </div>
                 </div>
