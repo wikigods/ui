@@ -48,6 +48,28 @@ class AuthRouteMethods
                 if ($options['verify'] ?? false) {
                     $this->emailVerification();
                 }
+
+                // Profile Routes...
+                if ($options['profile'] ?? true) {
+                    $this->profile();
+                }
+            });
+        };
+    }
+
+    /**
+     * Register the typical profile management routes for an application.
+     *
+     * @return callable
+     */
+    public function profile()
+    {
+        return function () {
+            $this->group(['middleware' => 'auth'], function () {
+                $this->get('profile', 'Auth\ProfileController@edit')->name('profile.edit');
+                $this->put('profile', 'Auth\ProfileController@update')->name('profile.update');
+                $this->put('password', 'Auth\ProfileController@updatePassword')->name('profile.password.update');
+                $this->delete('profile', 'Auth\ProfileController@destroy')->name('profile.destroy');
             });
         };
     }

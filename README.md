@@ -45,6 +45,10 @@ php artisan ui vue --auth
 php artisan ui react --auth
 ```
 
+The Bootstrap authentication scaffolding also includes authenticated profile management. It generates a profile page to edit the user's name and email, change the password after confirming the current password, and delete the account after a password check. The generated views use Bootstrap 5, and the feature is implemented by this package without requiring Breeze, Fortify, or Jetstream.
+
+The generated `routes/web.php` registers them with `Auth::routes()`. Profile routes are enabled by default and protected by the `auth` middleware; pass `Auth::routes(['profile' => false])` to disable them.
+
 #### CSS
 
 Laravel officially supports [Vite](https://laravel.com/docs/vite), a modern frontend build tool that provides an extremely fast development environment and bundles your code for production. Vite supports a variety of CSS preprocessor languages, including SASS and Less, which are extensions of plain CSS that add variables, mixins, and other powerful features that make working with CSS much more enjoyable. In this document, we will briefly discuss CSS compilation in general; however, you should consult the full [Vite documentation](https://laravel.com/docs/vite#working-with-stylesheets) for more information on compiling SASS or Less.

@@ -38,6 +38,7 @@ class AuthCommand extends Command
         'auth/passwords/reset.stub' => 'auth/passwords/reset.blade.php',
         'auth/register.stub' => 'auth/register.blade.php',
         'auth/verify.stub' => 'auth/verify.blade.php',
+        'profile/edit.stub' => 'profile/edit.blade.php',
         'home.stub' => 'home.blade.php',
         'layouts/app.stub' => 'layouts/app.blade.php',
     ];
@@ -81,6 +82,10 @@ class AuthCommand extends Command
         }
 
         if (! is_dir($directory = $this->getViewPath('auth/passwords'))) {
+            mkdir($directory, 0755, true);
+        }
+
+        if (! is_dir($directory = $this->getViewPath('profile'))) {
             mkdir($directory, 0755, true);
         }
     }

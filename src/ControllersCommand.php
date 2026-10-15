@@ -46,6 +46,18 @@ class ControllersCommand extends Command
                 );
             });
 
+        if (! is_dir($directory = app_path('Http/Requests'))) {
+            mkdir($directory, 0755, true);
+        }
+
+        collect($filesystem->allFiles(__DIR__.'/../stubs/Requests'))
+            ->each(function (SplFileInfo $file) use ($filesystem) {
+                $filesystem->copy(
+                    $file->getPathname(),
+                    app_path('Http/Requests/'.Str::replaceLast('.stub', '.php', $file->getFilename()))
+                );
+            });
+
         $this->components->info('Authentication scaffolding generated successfully.');
     }
 }
